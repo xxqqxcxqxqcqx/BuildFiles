@@ -15,12 +15,12 @@ function xroot {
 
 function xbuild {
 	MODULE=`pwd`
-	x-root
-	make BUILDMODS=${MODULE}
+	xroot
+	make X_MODULES=${MODULE}
 }
 
 function xbuildall {
-	x-root
+	xroot
 	make all
 }
 
