@@ -1,0 +1,157 @@
+#!/usr/bin/env ruby
+$LOAD_PATH << __dir__
+
+# Program Variables
+$__PROGRAM__ = 'X-Build'
+$__VERSION__ = 1.0
+
+require 'tools/xbs/BuildSystem.rb'
+require 'tools/xbs/Utilities.rb'
+require 'pathname'
+
+# Convert Arguments
+# to XBS Format
+$arglist = {
+    '--srcroot' => XBS::sourceroot,
+    '-s' => XBS::sourceroot,
+    '--objroot' => XBS::objectroot,
+    '-o' => XBS::objectroot,
+    '--instroot' => XBS::destroot,
+    '-i' => XBS::destroot,
+    '--variant' => XBS::variant,
+    '-v' => XBS::variant,
+    '--action' => XBS::action,
+    '-a' => XBS::action
+
+    # Other args not needed here
+    # --help, -h: Show command usage message
+    # --version:  Show version string
+};
+
+$envlist = {
+    'X_SRCROOT' => XBS::sourceroot,
+    'SRCROOT' => XBS::sourceroot,
+    'X_OBJROOT' => XBS::objectroot,
+    'OBJROOT' => XBS::objectroot,
+    'X_INSTDIR' => XBS::destroot,
+    'INSTDIR' => XBS::destroot,
+    'X_BUILDTYPE' => XBS::variant,
+    'BUILDTYPE' => XBS::variant,
+};
+
+$variants = {
+    'development' => XBS::development,
+    'release'     => XBS::release,
+    'debug'       => XBS::debug
+};
+
+$actions = {
+    'install' => XBS::install,
+    'build'   => XBS::build,
+    'clean'   => XBS::clean
+};
+
+def log_version
+    puts $__PROGRAM__ + ' v' + $__VERSION__.to_s + ' with XBS Version ' + XBS::BuildSystem::version.to_s
+    puts 'Using Ruby Version ' + RUBY_VERSION.to_s
+
+    exit 0
+end
+
+def show_usage name
+    puts 'Usage: ' + name
+
+    exit 0
+end
+
+def parse_args args
+    xbs_args = Hash.new
+    del_list = Array.new
+
+    ENV.each do |name, value|
+        symbol = $envlist[name]
+        xbs_args.put(symbol, value) unless symbol.nil?
+    end
+
+    # Arguments override Environment
+    args.each_with_index do |arg, index|
+        symbol = $arglist[arg]
+        value = args[index + 1]
+
+        # value.nil? case is handled by BuildSystem
+        unless symbol.nil?
+            xbs_args.put(symbol, value)
+            del_list << index + 1
+            del_list << index
+        end
+    end
+
+    del_list.uniq!
+    del_list.sort!
+    del_list.reverse!
+
+    del_list.each do |index|
+        args.delete_at index
+    end
+
+    return xbs_args
+end
+
+def parse_build_args args
+    # Just pass the rest
+    # to the BuildSystem
+    # for now.. fix later
+    return args.clone
+end
+
+def fix_args name, args
+    unless args.has_key?(XBS::sourceroot)
+        default_srcdir = File.join(ENV['PWD'], 'source')
+        usage() if default_srcdir.nil?
+        args.put(XBS::sourceroot, default_srcdir)
+    end
+
+    default_objdir  = File.join(args[XBS::sourceroot], 'out', 'build')
+    default_instdir = File.join(args[XBS::sourceroot], 'out', 'iroot')
+
+    args.put(XBS::objectroot, default_objdir)  unless args.has_key?(XBS::objectroot)
+    args.put(XBS::destroot,   default_instdir) unless args.has_key?(XBS::destroot)
+
+    if args.has_key?(XBS::variant)
+        variant = $variants[args[XBS::variant]]
+        show_usage(name) if variant.nil?
+        args.put(XBS::variant, variant)
+    else
+        args.put(XBS::variant, XBS::release)
+    end
+
+    if args.has_key?(XBS::action)
+        action = $actions[args[XBS::action]]
+        show_usage(name) if action.nil?
+        args.put(XBS::action, action)
+    else
+        args.put(XBS::action,  XBS::install)
+    end
+
+    return args
+end
+
+def main args
+    name = Pathname.new(args[0]).basename.to_s
+    show_usage(name) if args.include?('--help') || args.include?('-h')
+    args.shift
+
+    xbs_args   = parse_args(args)
+    xbs_args   = fix_args(name, xbs_args)
+    build_args = parse_build_args(args)
+    build_args << '--build-x=YES'
+
+    buildsystem = XBS::BuildSystem.new(name, xbs_args, [XBS::all], build_args)
+    return buildsystem
+end
+
+log_version if ARGV.include?('--version')
+args = ARGV.clone
+args.insert(0, __FILE__)
+buildsystem = main args
+buildsystem.start()

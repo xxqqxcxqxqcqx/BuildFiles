@@ -1,0 +1,10 @@
+group: Corona-X
+description: The Corona-X Source Tree
+subgroups:
+    - Base
+    - X-SDK
+    - POSIX-SDK
+    - X-CommandLine
+projects:
+    - finalize.xproj
+required_tools: []
